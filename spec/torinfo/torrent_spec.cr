@@ -17,7 +17,7 @@ Spectator.describe Torinfo::Torrent do
 
     it "computes the v1 info hash" do
       expected = Digest::SHA1.digest(FixtureBuilder.v1_single_info_bytes)
-      expect(torrent.info_hash_v1.not_nil!.bytes).to eq(expected)
+      expect(torrent.info_hash_v1.not_nil!.bytes).to eq(expected) # ameba:disable Lint/NotNil
     end
 
     it "returns nil for v2 info hash" do
@@ -48,7 +48,7 @@ Spectator.describe Torinfo::Torrent do
     it "reads created_on as UTC Time" do
       time = torrent.created_on
       expect(time).not_to be_nil
-      expect(time.not_nil!.to_unix).to eq(1704067200_i64)
+      expect(time.not_nil!.to_unix).to eq(1704067200_i64) # ameba:disable Lint/NotNil
     end
 
     it "reads comment" do
@@ -145,7 +145,7 @@ Spectator.describe Torinfo::Torrent do
 
     it "computes the v2 info hash" do
       expected = Digest::SHA256.digest(FixtureBuilder.v2_single_info_bytes)
-      expect(torrent.info_hash_v2.not_nil!.bytes).to eq(expected)
+      expect(torrent.info_hash_v2.not_nil!.bytes).to eq(expected) # ameba:disable Lint/NotNil
     end
 
     it "returns hash prefixed with 'v2 '" do
@@ -172,7 +172,7 @@ Spectator.describe Torinfo::Torrent do
     it "file has a pieces_root" do
       pr = torrent.files[0].pieces_root
       expect(pr).not_to be_nil
-      expect(pr.not_nil!.bytes.size).to eq(32)
+      expect(pr.not_nil!.bytes.size).to eq(32) # ameba:disable Lint/NotNil
     end
   end
 
@@ -185,12 +185,12 @@ Spectator.describe Torinfo::Torrent do
 
     it "has a v1 info hash" do
       expected = Digest::SHA1.digest(FixtureBuilder.hybrid_info_bytes)
-      expect(torrent.info_hash_v1.not_nil!.bytes).to eq(expected)
+      expect(torrent.info_hash_v1.not_nil!.bytes).to eq(expected) # ameba:disable Lint/NotNil
     end
 
     it "has a v2 info hash" do
       expected = Digest::SHA256.digest(FixtureBuilder.hybrid_info_bytes)
-      expect(torrent.info_hash_v2.not_nil!.bytes).to eq(expected)
+      expect(torrent.info_hash_v2.not_nil!.bytes).to eq(expected) # ameba:disable Lint/NotNil
     end
 
     it "prefers v1 in .hash" do

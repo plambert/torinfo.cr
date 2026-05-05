@@ -12,8 +12,8 @@ dir = File.dirname(__FILE__)
 }.each do |name, (info_bytes, announce_list)|
   path = File.join(dir, "#{name}.torrent")
   FixtureBuilder.write_torrent(path, info_bytes, announce_list)
-  sha1 = Digest::SHA1.digest(info_bytes).map { |b| "%02x" % b }.join
-  sha256 = Digest::SHA256.digest(info_bytes).map { |b| "%02x" % b }.join
+  sha1 = Digest::SHA1.digest(info_bytes).map { |byte| "%02x" % byte }.join
+  sha256 = Digest::SHA256.digest(info_bytes).map { |byte| "%02x" % byte }.join
   puts "#{name}.torrent: sha1=#{sha1} sha256=#{sha256}"
 end
 

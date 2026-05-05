@@ -120,7 +120,7 @@ Spectator.describe Torinfo::BencodeParser do
       parser.parse
       info_bytes = parser.info_raw_bytes
       expect(info_bytes).not_to be_nil
-      reparsed = Torinfo::BencodeParser.parse(info_bytes.not_nil!)
+      reparsed = Torinfo::BencodeParser.parse(info_bytes.not_nil!) # ameba:disable Lint/NotNil
       dict = reparsed.as(Hash(String, Torinfo::BencodeValue))
       expect(String.new(dict["name"].as(Bytes))).to eq("test")
     end
