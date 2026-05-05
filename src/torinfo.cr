@@ -5,6 +5,7 @@ require "./torinfo/torrent"
 require "./torinfo/formatters/text"
 require "./torinfo/formatters/json"
 require "./torinfo/formatters/bash_vars"
+require "./torinfo/formatters/bash_func"
 
 module Torinfo
   VERSION = "0.1.0"
