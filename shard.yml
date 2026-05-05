@@ -4,6 +4,24 @@ version: 0.1.0
 authors:
   - Paul M. Lambert <plambert@plambert.net>
 
-crystal: '>= 1.20.0'
+description: Crystal shard and CLI for reading BitTorrent .torrent files
+
+crystal: ">= 1.20.0"
 
 license: MIT
+
+targets:
+  torinfo:
+    main: src/torinfo_cli.cr
+
+dependencies:
+  guard:
+    github: plambert/guard.cr
+
+development_dependencies:
+  spectator:
+    gitlab: arctic-fox/spectator
+    version: "~> 0.11"
+  ameba:
+    github: crystal-ameba/ameba
+    version: "~> 1.6"

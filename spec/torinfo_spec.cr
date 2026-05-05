@@ -1,6 +1,6 @@
 require "./spec_helper"
 
-describe Torinfo do
+Spectator.describe Torinfo do
   # TODO: Write tests
 
   it "works" do
