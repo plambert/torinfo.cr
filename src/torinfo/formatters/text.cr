@@ -3,12 +3,13 @@ module Torinfo
     class Text
       property time_format : String?
       property? unix_epoch : Bool = false
+      property? raw : Bool = false
 
       def format_all(torrents : Array(Torrent), io : IO, fields : Array(Symbol) = [] of Symbol) : Nil
         torrents.each_with_index do |torrent, index|
-          io << "==== #{torrent.path} ====\n" if torrents.size > 1
+          io << "==== #{torrent.path} ====\n" if torrents.size > 1 && !@raw
           format_one(torrent, io, fields: fields)
-          io << '\n' if index < torrents.size - 1
+          io << '\n' if index < torrents.size - 1 && !@raw
         end
       end
 
@@ -40,23 +41,31 @@ module Torinfo
 
       private def emit_trackers(io : IO, torrent : Torrent) : Nil
         return if torrent.trackers.empty?
-        io << "Trackers:\n"
-        torrent.trackers.each_with_index(offset: 1) do |url, num|
-          io << "  #{num}. #{url}\n"
+        if @raw
+          torrent.trackers.each { |url| io << url << '\n' }
+        else
+          io << "Trackers:\n"
+          torrent.trackers.each_with_index(offset: 1) { |url, num| io << "  #{num}. #{url}\n" }
         end
       end
 
       private def emit_files(io : IO, torrent : Torrent) : Nil
         return if torrent.files.empty?
-        io << "Files:\n"
-        torrent.files.each_with_index(offset: 1) do |file, num|
-          io << "  #{num}. #{file.size}  #{file.path}\n"
+        if @raw
+          torrent.files.each { |file| io << file.size << "  " << file.path << '\n' }
+        else
+          io << "Files:\n"
+          torrent.files.each_with_index(offset: 1) { |file, num| io << "  #{num}. #{file.size}  #{file.path}\n" }
         end
       end
 
       private def emit(io : IO, label : String, value : String?) : Nil
         return if value.nil? || value.empty?
-        io << "#{label}: #{value}\n"
+        if @raw
+          io << value << '\n'
+        else
+          io << "#{label}: #{value}\n"
+        end
       end
 
       private def emit_time(io : IO, label : String, time : Time?) : Nil
@@ -68,7 +77,11 @@ module Torinfo
                     else
                       time.to_rfc3339
                     end
-        io << "#{label}: #{formatted}\n"
+        if @raw
+          io << formatted << '\n'
+        else
+          io << "#{label}: #{formatted}\n"
+        end
       end
 
       private def format_version_label(version : Int32) : String

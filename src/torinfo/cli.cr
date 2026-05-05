@@ -22,11 +22,13 @@ module Torinfo
       --bashf FUNCTION                Output bash function call suitable for eval
       --json                          Output JSON
 
+      --raw                           Output values only (no labels); only valid with --text
       --strftime FORMAT               Format timestamps using strftime-style FORMAT
       --unix-epoch                    Format timestamps as seconds since Unix epoch
 
     Notes:
       --bashv and --bashf cannot be combined with field specifiers.
+      --raw is only valid with --text output.
     HELP
 
   FIELD_FLAGS = {
@@ -51,6 +53,7 @@ module Torinfo
     getter fields : Array(Symbol) = [] of Symbol
     getter time_format : String?
     getter? unix_epoch : Bool = false
+    getter? raw : Bool = false
     getter torrent_paths : Array(String) = [] of String
 
     def initialize(opts = ARGV.dup)
@@ -73,6 +76,8 @@ module Torinfo
           @time_format = opts.shift? || raise ArgumentError.new("--strftime requires a FORMAT argument")
         when "--unix-epoch"
           @unix_epoch = true
+        when "--raw"
+          @raw = true
         when "--name", "--hash", "--created-by", "--created-on", "--comment",
              "--source", "--piece-count", "--piece-size", "--total-size",
              "--visibility", "--trackers", "--files"
@@ -87,6 +92,9 @@ module Torinfo
       if [:bash_vars, :bash_func].includes?(@output_format) && !@fields.empty?
         raise ArgumentError.new("cannot combine --bashv/--bashf with field specifiers")
       end
+      if @raw && @output_format != :text
+        raise ArgumentError.new("--raw is only valid with --text output")
+      end
     end
 
     def run(io : IO = STDOUT) : Nil
@@ -98,6 +106,7 @@ module Torinfo
         fmt = Formatters::Text.new
         fmt.time_format = @time_format
         fmt.unix_epoch = @unix_epoch
+        fmt.raw = @raw
         fmt.format_all(torrents, io, fields: @fields)
       when :json
         fmt = Formatters::Json.new

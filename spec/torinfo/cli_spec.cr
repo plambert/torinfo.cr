@@ -57,6 +57,23 @@ Spectator.describe Torinfo::CLI do
       }.to raise_error(ArgumentError, /cannot combine/)
     end
 
+    it "parses --raw" do
+      cli = Torinfo::CLI.new(["--raw", "spec/fixtures/v1_single.torrent"])
+      expect(cli.raw?).to be_true
+    end
+
+    it "raises ArgumentError for --raw with --json" do
+      expect {
+        Torinfo::CLI.new(["--raw", "--json", "spec/fixtures/v1_single.torrent"])
+      }.to raise_error(ArgumentError, /only valid with --text/)
+    end
+
+    it "raises ArgumentError for --raw with --bashv" do
+      expect {
+        Torinfo::CLI.new(["--raw", "--bashv", "t_", "spec/fixtures/v1_single.torrent"])
+      }.to raise_error(ArgumentError, /only valid with --text/)
+    end
+
     it "raises ArgumentError for unknown option" do
       expect {
         Torinfo::CLI.new(["--nope", "spec/fixtures/v1_single.torrent"])
@@ -81,6 +98,13 @@ Spectator.describe Torinfo::CLI do
       cli = Torinfo::CLI.new(["spec/fixtures/v1_single.torrent"])
       cli.run(io)
       expect(io.to_s).to match(/Name: test-file\.txt/)
+    end
+
+    it "outputs raw value without label when --raw" do
+      io = IO::Memory.new
+      cli = Torinfo::CLI.new(["--raw", "--name", "spec/fixtures/v1_single.torrent"])
+      cli.run(io)
+      expect(io.to_s.chomp).to eq("test-file.txt")
     end
 
     it "outputs JSON when --json" do
