@@ -1,6 +1,5 @@
-# TODO: Write documentation for `Torinfo`
+require "./torinfo/byte_string"
+
 module Torinfo
   VERSION = "0.1.0"
-
-  # TODO: Put your code here
 end
