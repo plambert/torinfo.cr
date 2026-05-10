@@ -20,7 +20,7 @@ module Torinfo
     end
 
     def info_raw_bytes : Bytes?
-      return nil unless range = @info_range
+      return unless range = @info_range
       copy = Bytes.new(range.size)
       @raw[range].copy_to(copy)
       copy

@@ -46,15 +46,15 @@ Spectator.describe Torinfo::CLI do
     end
 
     it "raises ArgumentError for --bashv with field specifiers" do
-      expect {
+      expect do
         Torinfo::CLI.new(["--bashv", "t_", "--name", "spec/fixtures/v1_single.torrent"])
-      }.to raise_error(ArgumentError, /cannot combine/)
+      end.to raise_error(ArgumentError, /cannot combine/)
     end
 
     it "raises ArgumentError for --bashf with field specifiers" do
-      expect {
+      expect do
         Torinfo::CLI.new(["--bashf", "f", "--hash", "spec/fixtures/v1_single.torrent"])
-      }.to raise_error(ArgumentError, /cannot combine/)
+      end.to raise_error(ArgumentError, /cannot combine/)
     end
 
     it "parses --raw" do
@@ -63,27 +63,27 @@ Spectator.describe Torinfo::CLI do
     end
 
     it "raises ArgumentError for --raw with --json" do
-      expect {
+      expect do
         Torinfo::CLI.new(["--raw", "--json", "spec/fixtures/v1_single.torrent"])
-      }.to raise_error(ArgumentError, /only valid with --text/)
+      end.to raise_error(ArgumentError, /only valid with --text/)
     end
 
     it "raises ArgumentError for --raw with --bashv" do
-      expect {
+      expect do
         Torinfo::CLI.new(["--raw", "--bashv", "t_", "spec/fixtures/v1_single.torrent"])
-      }.to raise_error(ArgumentError, /only valid with --text/)
+      end.to raise_error(ArgumentError, /only valid with --text/)
     end
 
     it "raises ArgumentError for unknown option" do
-      expect {
+      expect do
         Torinfo::CLI.new(["--nope", "spec/fixtures/v1_single.torrent"])
-      }.to raise_error(ArgumentError, /unknown option/)
+      end.to raise_error(ArgumentError, /unknown option/)
     end
 
     it "raises ArgumentError for --bashv without prefix argument" do
-      expect {
+      expect do
         Torinfo::CLI.new(["--bashv"])
-      }.to raise_error(ArgumentError, /requires/)
+      end.to raise_error(ArgumentError, /requires/)
     end
 
     it "collects torrent file paths" do

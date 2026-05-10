@@ -45,7 +45,7 @@ module Torinfo
       end
 
       private def format_time(time : Time?) : String?
-        return nil unless time
+        return unless time
         if @unix_epoch
           time.to_unix.to_s
         elsif fmt = @time_format
