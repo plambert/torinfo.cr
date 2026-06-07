@@ -47,6 +47,7 @@ Visibility: private
 The Name of This BitTorrent File.txt
 % printf '%8d %s\n' "${tfile_filesize[0]}" "${tfile_filename[0]}"
   123456 The Name of This BitTorrent File.txt
+% unset "${tfile_variables[@]}"   # remove every variable torinfo defined
 
 % process_torrent() {
     local name="$1" hash="$2" created_by="$3" created_on="$4" comment="$5"

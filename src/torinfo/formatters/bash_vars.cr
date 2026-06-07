@@ -44,7 +44,7 @@ module Torinfo
 
       private def build_assignments(torrent : Torrent, prefix : String) : Array({String, String})
         time_str = format_time(torrent.created_on)
-        [
+        assignments = [
           {"#{prefix}path", bash_quote(torrent.path)},
           {"#{prefix}name", bash_quote(torrent.name)},
           {"#{prefix}hash", bash_quote(torrent.hash)},
@@ -61,6 +61,10 @@ module Torinfo
           {"#{prefix}filename", bash_array(torrent.files.map(&.path))},
           {"#{prefix}filesize", bash_int_array(torrent.files.map(&.size))},
         ]
+        names = assignments.map { |var_name, _value| var_name }
+        names << "#{prefix}variables"
+        assignments << {"#{prefix}variables", bash_array(names)}
+        assignments
       end
 
       private def bash_array(items : Array(String)) : String

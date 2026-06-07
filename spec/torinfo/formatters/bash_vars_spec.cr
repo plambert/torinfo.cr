@@ -32,6 +32,19 @@ Spectator.describe Torinfo::Formatters::BashVars do
     it "puts everything on one line" do
       expect(output.strip.count('\n')).to eq(0)
     end
+
+    it "includes a variables array naming every emitted variable" do
+      expect(output).to match(/t_variables=\(/)
+      %w[t_path t_name t_hash t_created_by t_created_on t_comment t_source
+        t_piece_count t_piece_size t_total_size t_visibility t_format_version
+        t_trackers t_filename t_filesize].each do |var|
+        expect(output).to match(/'#{var}'/)
+      end
+    end
+
+    it "includes itself in the variables array" do
+      expect(output).to match(/t_variables=\([^)]*'t_variables'[^)]*\)/)
+    end
   end
 
   describe "#format_one (TTY, single file)" do
@@ -69,6 +82,14 @@ Spectator.describe Torinfo::Formatters::BashVars do
       io = IO::Memory.new
       formatter.format_all([torrent, torrent2], io, prefix: "t_", tty: true)
       expect(io.to_s).to match(/\n\n/)
+    end
+
+    it "emits a per-torrent variables manifest" do
+      io = IO::Memory.new
+      formatter.format_all([torrent, torrent2], io, prefix: "t_", tty: false)
+      output = io.to_s
+      expect(output).to match(/t_1_variables=\([^)]*'t_1_variables'[^)]*\)/)
+      expect(output).to match(/t_2_variables=\([^)]*'t_2_variables'[^)]*\)/)
     end
   end
 
