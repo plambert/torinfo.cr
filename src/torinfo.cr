@@ -9,5 +9,5 @@ require "./torinfo/formatters/bash_func"
 require "./torinfo/cli"
 
 module Torinfo
-  VERSION = "0.1.0"
+  VERSION = {{ `shards version`.strip.stringify }}
 end
