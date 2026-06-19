@@ -12,25 +12,36 @@ Once `torinfo` is built and in your PATH, you can see help with:
 
 ```
 % torinfo --help
-torinfo - tool to read BitTorrent files
-
 Usage: torinfo [options] <torrentfile...>
 
-Options
+tool to read BitTorrent files
 
-  --help, -h                      Show this help
-  --files                         List the files
-
-  --name, --hash, --created-by, 
-  --created-on, --comment,
-  --source, --piece-count,
-  --piece-size, --total-size,
-  --visibility, --trackers        Show one or more fields
-
-  --text                          Output values as human-readable text (DEFAULT)
+Options:
+  --json                          Output JSON
+  --text                          Output human-readable text (DEFAULT)
   --bashv PREFIX                  Output bash variable assignments suitable for eval
   --bashf FUNCTION                Output bash function call suitable for eval
-  --json                          Output JSON
+  --raw                           Output values only (no labels); only valid with --text
+  --strftime FORMAT               Format timestamps using strftime-style FORMAT
+  --unix-epoch                    Format timestamps as seconds since Unix epoch
+  --name                          Show the name
+  --hash                          Show the info hash
+  --created-by                    Show the creating program
+  --created-on                    Show the creation timestamp
+  --comment                       Show the comment
+  --source                        Show the source
+  --piece-count                   Show the piece count
+  --piece-size                    Show the piece size
+  --total-size                    Show the total size
+  --visibility                    Show the visibility
+  --trackers                      Show the trackers
+  --files                         List the files
+
+Positional arguments:
+  <torrent_paths...>    BitTorrent files to read
+
+--bashv and --bashf cannot be combined with field specifiers.
+--raw is only valid with --text output.
 
 % torinfo --json file.torrent | jq .name
 "The Name of This BitTorrent File.txt"
@@ -71,6 +82,23 @@ The Name of This BitTorrent File.txt
 % eval "$(torinfo --bashf process_torrent file.torrent)"
 The Name of This BitTorrent File.txt (123456 bytes, 3 files)
 ```
+
+## Shell completion
+
+`torinfo` generates its own completion scripts for bash, zsh, and fish:
+
+```sh
+# Bash — eval in .bashrc, or write to a completions dir
+eval "$(torinfo --shell-completion bash)"
+
+# Zsh — write to a file on the fpath
+torinfo --shell-completion zsh > _torinfo
+
+# Fish
+torinfo --shell-completion fish > ~/.config/fish/completions/torinfo.fish
+```
+
+`torinfo --version` prints the version, and `torinfo --help` lists every option.
 
 ## Shard Usage
 

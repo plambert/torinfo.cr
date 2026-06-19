@@ -1,128 +1,118 @@
 require "json"
+require "shell-auto_complete"
 
 module Torinfo
-  HELP = <<-HELP
-    torinfo - tool to read BitTorrent files
+  Shell::AutoComplete.command CLI,
+    name: "torinfo",
+    description: "tool to read BitTorrent files",
+    usage: "torinfo [options] <torrentfile...>",
+    footer: "--bashv and --bashf cannot be combined with field specifiers.\n" \
+            "--raw is only valid with --text output." do
+    # Output format selectors
+    flag json : Bool = false, "--json", "Output JSON", negatable: false
+    flag text : Bool = false, "--text", "Output human-readable text (DEFAULT)", negatable: false
+    flag bashv_prefix : String?, "--bashv PREFIX", "Output bash variable assignments suitable for eval"
+    flag bashf_func : String?, "--bashf FUNCTION", "Output bash function call suitable for eval"
 
-    Usage: torinfo [options] <torrentfile...>
+    # Output modifiers
+    flag raw : Bool = false, "--raw", "Output values only (no labels); only valid with --text", negatable: false
+    flag strftime : String?, "--strftime FORMAT", "Format timestamps using strftime-style FORMAT"
+    flag unix_epoch : Bool = false, "--unix-epoch", "Format timestamps as seconds since Unix epoch", negatable: false
 
-    Options
+    # Field selectors
+    flag want_name : Bool = false, "--name", "Show the name", negatable: false
+    flag want_hash : Bool = false, "--hash", "Show the info hash", negatable: false
+    flag want_created_by : Bool = false, "--created-by", "Show the creating program", negatable: false
+    flag want_created_on : Bool = false, "--created-on", "Show the creation timestamp", negatable: false
+    flag want_comment : Bool = false, "--comment", "Show the comment", negatable: false
+    flag want_source : Bool = false, "--source", "Show the source", negatable: false
+    flag want_piece_count : Bool = false, "--piece-count", "Show the piece count", negatable: false
+    flag want_piece_size : Bool = false, "--piece-size", "Show the piece size", negatable: false
+    flag want_total_size : Bool = false, "--total-size", "Show the total size", negatable: false
+    flag want_visibility : Bool = false, "--visibility", "Show the visibility", negatable: false
+    flag want_trackers : Bool = false, "--trackers", "Show the trackers", negatable: false
+    flag want_files : Bool = false, "--files", "List the files", negatable: false
 
-      --help, -h                      Show this help
+    positionals torrent_paths : Array(Path), "BitTorrent files to read", min: 1
 
-      --files                         List the files
-      --name, --hash, --created-by,
-      --created-on, --comment,
-      --source, --piece-count,
-      --piece-size, --total-size,
-      --visibility, --trackers        Show one or more fields
+    def run
+      emit(STDOUT)
+    end
 
-      --text                          Output values as human-readable text (DEFAULT)
-      --bashv PREFIX                  Output bash variable assignments suitable for eval
-      --bashf FUNCTION                Output bash function call suitable for eval
-      --json                          Output JSON
+    # Renders the parsed request to *io*. Public so specs can drive it with an
+    # in-memory IO; `run` calls it with STDOUT.
+    def emit(io : IO) : Nil
+      fmt = output_format
+      selected = selected_fields
+      validate!(fmt, selected)
 
-      --raw                           Output values only (no labels); only valid with --text
-      --strftime FORMAT               Format timestamps using strftime-style FORMAT
-      --unix-epoch                    Format timestamps as seconds since Unix epoch
+      torrents = torrent_paths.map { |path| Torrent.from_file(path.to_s) }
+      tty = io.is_a?(IO::FileDescriptor) && io.tty?
 
-    Notes:
-      --bashv and --bashf cannot be combined with field specifiers.
-      --raw is only valid with --text output.
-    HELP
-
-  FIELD_FLAGS = {
-    "--name"        => :name,
-    "--hash"        => :hash,
-    "--created-by"  => :created_by,
-    "--created-on"  => :created_on,
-    "--comment"     => :comment,
-    "--source"      => :source,
-    "--piece-count" => :piece_count,
-    "--piece-size"  => :piece_size,
-    "--total-size"  => :total_size,
-    "--visibility"  => :visibility,
-    "--trackers"    => :trackers,
-    "--files"       => :files,
-  }
-
-  class CLI
-    getter output_format : Symbol = :text
-    getter bash_prefix : String = ""
-    getter bash_func_name : String = ""
-    getter fields : Array(Symbol) = [] of Symbol
-    getter time_format : String?
-    getter? unix_epoch : Bool = false
-    getter? raw : Bool = false
-    getter torrent_paths : Array(String) = [] of String
-
-    def initialize(opts = ARGV.dup)
-      while opt = opts.shift?
-        case opt
-        when "--help", "-h"
-          puts HELP
-          exit 0
-        when "--text"
-          @output_format = :text
-        when "--json"
-          @output_format = :json
-        when "--bashv"
-          @output_format = :bash_vars
-          @bash_prefix = opts.shift? || raise ArgumentError.new("--bashv requires a PREFIX argument")
-        when "--bashf"
-          @output_format = :bash_func
-          @bash_func_name = opts.shift? || raise ArgumentError.new("--bashf requires a FUNCTION argument")
-        when "--strftime"
-          @time_format = opts.shift? || raise ArgumentError.new("--strftime requires a FORMAT argument")
-        when "--unix-epoch"
-          @unix_epoch = true
-        when "--raw"
-          @raw = true
-        when "--name", "--hash", "--created-by", "--created-on", "--comment",
-             "--source", "--piece-count", "--piece-size", "--total-size",
-             "--visibility", "--trackers", "--files"
-          @fields << FIELD_FLAGS[opt]
-        when /\A--/
-          raise ArgumentError.new("#{opt}: unknown option")
-        else
-          @torrent_paths << opt
-        end
+      case fmt
+      when :text
+        formatter = Formatters::Text.new
+        formatter.time_format = strftime
+        formatter.unix_epoch = unix_epoch
+        formatter.raw = raw
+        formatter.format_all(torrents, io, fields: selected)
+      when :json
+        formatter = Formatters::Json.new
+        formatter.time_format = strftime
+        formatter.unix_epoch = unix_epoch
+        formatter.format_all(torrents, io)
+      when :bash_vars
+        formatter = Formatters::BashVars.new
+        formatter.time_format = strftime
+        formatter.unix_epoch = unix_epoch
+        formatter.format_all(torrents, io, prefix: bashv_prefix.to_s, tty: tty)
+      when :bash_func
+        formatter = Formatters::BashFunc.new
+        formatter.time_format = strftime
+        formatter.unix_epoch = unix_epoch
+        formatter.format_all(torrents, io, func_name: bashf_func.to_s, tty: tty)
       end
+    rescue e : IO::Error
+      raise e unless e.message =~ %r{Broken pipe}
+    end
 
-      if [:bash_vars, :bash_func].includes?(@output_format) && !@fields.empty?
-        raise ArgumentError.new("cannot combine --bashv/--bashf with field specifiers")
-      end
-      if @raw && @output_format != :text
-        raise ArgumentError.new("--raw is only valid with --text output")
+    # The selected output format, derived from the format-selector flags.
+    def output_format : Symbol
+      if bashv_prefix
+        :bash_vars
+      elsif bashf_func
+        :bash_func
+      elsif json
+        :json
+      else
+        :text
       end
     end
 
-    def run(io : IO = STDOUT) : Nil
-      torrents = @torrent_paths.map { |path| Torrent.from_file(path) }
-      tty = io.is_a?(IO::FileDescriptor) && io.tty?
+    # The requested field symbols, in display order. Empty means "show all".
+    def selected_fields : Array(Symbol)
+      fields = [] of Symbol
+      fields << :name if want_name
+      fields << :hash if want_hash
+      fields << :created_by if want_created_by
+      fields << :created_on if want_created_on
+      fields << :comment if want_comment
+      fields << :source if want_source
+      fields << :piece_count if want_piece_count
+      fields << :piece_size if want_piece_size
+      fields << :total_size if want_total_size
+      fields << :visibility if want_visibility
+      fields << :trackers if want_trackers
+      fields << :files if want_files
+      fields
+    end
 
-      case @output_format
-      when :text
-        fmt = Formatters::Text.new
-        fmt.time_format = @time_format
-        fmt.unix_epoch = @unix_epoch
-        fmt.raw = @raw
-        fmt.format_all(torrents, io, fields: @fields)
-      when :json
-        fmt = Formatters::Json.new
-        fmt.time_format = @time_format
-        fmt.unix_epoch = @unix_epoch
-        fmt.format_all(torrents, io)
-      when :bash_vars
-        fmt = Formatters::BashVars.new
-        fmt.time_format = @time_format
-        fmt.unix_epoch = @unix_epoch
-        fmt.format_all(torrents, io, prefix: @bash_prefix, tty: tty)
-      when :bash_func
-        fmt = Formatters::BashFunc.new
-        fmt.time_format = @time_format
-        fmt.unix_epoch = @unix_epoch
-        fmt.format_all(torrents, io, func_name: @bash_func_name, tty: tty)
+    private def validate!(fmt : Symbol, selected : Array(Symbol)) : Nil
+      if {:bash_vars, :bash_func}.includes?(fmt) && !selected.empty?
+        raise Shell::AutoComplete::ParseError.new("cannot combine --bashv/--bashf with field specifiers")
+      end
+      if raw && fmt != :text
+        raise Shell::AutoComplete::ParseError.new("--raw is only valid with --text output")
       end
     end
   end

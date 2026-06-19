@@ -17,6 +17,8 @@ targets:
 dependencies:
   guard:
     github: plambert/guard.cr
+  shell-auto_complete:
+    github: plambert/shell-auto_complete.cr
 
 development_dependencies:
   spectator:
