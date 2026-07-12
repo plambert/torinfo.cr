@@ -24,6 +24,8 @@ Options:
   --raw                           Output values only (no labels); only valid with --text
   --strftime FORMAT               Format timestamps using strftime-style FORMAT
   --unix-epoch                    Format timestamps as seconds since Unix epoch
+  --size-unit UNIT                Size units for text output: --human (DEFAULT), --bytes,
+                                  --kilobytes, --megabytes, --gigabytes
   --name                          Show the name
   --hash                          Show the info hash
   --created-by                    Show the creating program
@@ -32,7 +34,7 @@ Options:
   --source                        Show the source
   --piece-count                   Show the piece count
   --piece-size                    Show the piece size
-  --total-size                    Show the total size
+  --size                          Show the total size
   --visibility                    Show the visibility
   --trackers                      Show the trackers
   --files                         List the files
@@ -52,6 +54,18 @@ Hash: v1 36944055acf98ed2822d937ec0c32dd77f8d786b
 
 % torinfo --visibility file.torrent
 Visibility: private
+
+% torinfo --size file.torrent          # sizes are humanized by default
+Total Size: 3.5k
+
+% torinfo --bytes --size file.torrent  # or --kilobytes / --megabytes / --gigabytes
+Total Size: 3500
+
+% torinfo --files --bytes file.torrent  # file sizes are right-justified
+Files:
+  1. 1000  subdir/file1.txt
+  2. 2000  subdir/file2.txt
+  3.  500  other.txt
 
 % eval "$(torinfo --bashv tfile_ file.torrent)"
 % echo "$tfile_name"

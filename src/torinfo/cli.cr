@@ -18,6 +18,14 @@ module Torinfo
     flag raw : Bool = false, "--raw", "Output values only (no labels); only valid with --text", negatable: false
     flag strftime : String?, "--strftime FORMAT", "Format timestamps using strftime-style FORMAT"
     flag unix_epoch : Bool = false, "--unix-epoch", "Format timestamps as seconds since Unix epoch", negatable: false
+    flag size_unit : SizeUnit = SizeUnit::Human, "--size-unit UNIT",
+      "Size units for text output: --human (DEFAULT), --bytes, --kilobytes, --megabytes, --gigabytes",
+      shortcut_flags: true,
+      complete_with: :complete_size_unit
+
+    def self.complete_size_unit(ctx : Shell::AutoComplete::CompletionContext) : Array(String)
+      SizeUnit.names.map(&.downcase)
+    end
 
     # Field selectors
     flag want_name : Bool = false, "--name", "Show the name", negatable: false
@@ -28,7 +36,7 @@ module Torinfo
     flag want_source : Bool = false, "--source", "Show the source", negatable: false
     flag want_piece_count : Bool = false, "--piece-count", "Show the piece count", negatable: false
     flag want_piece_size : Bool = false, "--piece-size", "Show the piece size", negatable: false
-    flag want_total_size : Bool = false, "--total-size", "Show the total size", negatable: false
+    flag want_total_size : Bool = false, "--size", "Show the total size", negatable: false
     flag want_visibility : Bool = false, "--visibility", "Show the visibility", negatable: false
     flag want_trackers : Bool = false, "--trackers", "Show the trackers", negatable: false
     flag want_files : Bool = false, "--files", "List the files", negatable: false
@@ -55,6 +63,7 @@ module Torinfo
         formatter.time_format = strftime
         formatter.unix_epoch = unix_epoch
         formatter.raw = raw
+        formatter.size_unit = size_unit
         formatter.format_all(torrents, io, fields: selected)
       when :json
         formatter = Formatters::Json.new

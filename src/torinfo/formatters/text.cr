@@ -2,6 +2,7 @@ module Torinfo
   module Formatters
     class Text
       property time_format : String?
+      property size_unit : SizeUnit = SizeUnit::Human
       property? unix_epoch : Bool = false
       property? raw : Bool = false
 
@@ -36,7 +37,7 @@ module Torinfo
       private def emit_stat_fields(io : IO, torrent : Torrent, show_all : Bool, fields : Array(Symbol)) : Nil
         emit(io, "Piece Count", torrent.piece_count.to_s) if show_all || fields.includes?(:piece_count)
         emit(io, "Piece Size", torrent.piece_size.to_s) if show_all || fields.includes?(:piece_size)
-        emit(io, "Total Size", torrent.total_size.to_s) if show_all || fields.includes?(:total_size)
+        emit(io, "Total Size", @size_unit.format(torrent.total_size)) if show_all || fields.includes?(:total_size)
       end
 
       private def emit_trackers(io : IO, torrent : Torrent) : Nil
@@ -51,11 +52,15 @@ module Torinfo
 
       private def emit_files(io : IO, torrent : Torrent) : Nil
         return if torrent.files.empty?
+        sizes = torrent.files.map { |file| @size_unit.format(file.size) }
         if @raw
-          torrent.files.each { |file| io << file.size << "  " << file.path << '\n' }
+          torrent.files.each_with_index { |file, index| io << sizes[index] << "  " << file.path << '\n' }
         else
+          width = sizes.max_of(&.size)
           io << "Files:\n"
-          torrent.files.each_with_index(offset: 1) { |file, num| io << "  #{num}. #{file.size}  #{file.path}\n" }
+          torrent.files.each_with_index do |file, index|
+            io << "  #{index + 1}. #{sizes[index].rjust(width)}  #{file.path}\n"
+          end
         end
       end
 

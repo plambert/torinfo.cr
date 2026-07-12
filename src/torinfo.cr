@@ -1,5 +1,6 @@
 require "./torinfo/byte_string"
 require "./torinfo/bencode"
+require "./torinfo/size_unit"
 require "./torinfo/torrent_file"
 require "./torinfo/torrent"
 require "./torinfo/formatters/text"
