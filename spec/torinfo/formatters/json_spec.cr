@@ -1,5 +1,6 @@
 require "../../spec_helper"
 require "json"
+require "yaml"
 
 Spectator.describe Torinfo::Formatters::Json do
   let(single) { Torinfo::Torrent.from_file("spec/fixtures/v1_single.torrent") }
