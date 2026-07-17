@@ -1,18 +1,27 @@
 module Torinfo
   module Formatters
+    # `eval`-able call to a user function. Argument layout:
+    #
+    #   funcname <scalar field args in field order> -- <trackers> -- <files>
+    #
+    # `size` emits a byte count followed by its formatted value when a unit was
+    # explicitly selected. The tracker section is present only when the
+    # `trackers` field is selected; the file section only with --files, as
+    # `path size [size_formatted]` groups. Both `--` separators are always
+    # present so the caller can parse the three sections unambiguously.
     class BashFunc
-      property time_format : String?
-      property? unix_epoch : Bool = false
+      property size_unit : SizeUnit = SizeUnit::Human
+      property? size_companion : Bool = false
 
-      def format_all(torrents : Array(Torrent), io : IO, func_name : String, tty : Bool) : Nil
+      def format_all(torrents : Array(Torrent), io : IO, func_name : String, tty : Bool, fields : Array(Field), show_files : Bool) : Nil
         torrents.each_with_index do |torrent, index|
-          format_one(torrent, io, func_name: func_name, tty: tty)
+          format_one(torrent, io, func_name, tty, fields, show_files)
           io << '\n' if tty && index < torrents.size - 1
         end
       end
 
-      def format_one(torrent : Torrent, io : IO, func_name : String, tty : Bool) : Nil
-        args = build_args(torrent)
+      def format_one(torrent : Torrent, io : IO, func_name : String, tty : Bool, fields : Array(Field), show_files : Bool) : Nil
+        args = build_args(torrent, fields, show_files)
         if tty
           indent = " " * (func_name.size + 1)
           io << func_name << ' ' << args.first << " \\\n"
@@ -23,44 +32,46 @@ module Torinfo
         end
       end
 
-      private def build_args(torrent : Torrent) : Array(String)
-        time_str = format_time(torrent.created_on)
+      private def companion_suffix : String?
+        size_companion? ? @size_unit.suffix : nil
+      end
 
-        args = [
-          bash_quote(torrent.path),
-          bash_quote(torrent.name),
-          bash_quote(torrent.hash),
-          bash_quote(torrent.created_by || ""),
-          bash_quote(time_str),
-          bash_quote(torrent.comment || ""),
-          bash_quote(torrent.source || ""),
-          torrent.piece_count.to_s,
-          torrent.piece_size.to_s,
-          torrent.total_size.to_s,
-          torrent.visibility,
-          torrent.format_version.to_s,
-        ]
+      private def build_args(torrent : Torrent, fields : Array(Field), show_files : Bool) : Array(String)
+        ctx = RenderContext.new(unit: @size_unit, visual: false)
+        args = [] of String
 
-        torrent.trackers.each { |url| args << bash_quote(url) }
+        fields.each do |field|
+          next if field.trackers?
+          if field.size?
+            args << torrent.total_size.to_s
+            args << bash_quote(@size_unit.format(torrent.total_size)) if companion_suffix
+          else
+            value = field.render(torrent, ctx)
+            args << (unquoted?(field) ? value : bash_quote(value))
+          end
+        end
+
         args << "--"
-        torrent.files.each { |file| args << bash_quote(file.path) << file.size.to_s }
+        torrent.trackers.each { |url| args << bash_quote(url) } if fields.includes?(Field::Trackers)
+
+        args << "--"
+        if show_files
+          torrent.files.each do |file|
+            args << bash_quote(file.path)
+            args << file.size.to_s
+            args << bash_quote(@size_unit.format(file.size)) if companion_suffix
+          end
+        end
 
         args
       end
 
-      private def bash_quote(str : String) : String
-        "'#{str.gsub("'", "'\\''")}'"
+      private def unquoted?(field : Field) : Bool
+        field.numeric? || field.format? || field.visibility?
       end
 
-      private def format_time(time : Time?) : String
-        return "" unless time
-        if @unix_epoch
-          time.to_unix.to_s
-        elsif fmt = @time_format
-          time.to_s(fmt)
-        else
-          time.to_rfc3339
-        end
+      private def bash_quote(str : String) : String
+        "'#{str.gsub("'", "'\\''")}'"
       end
     end
   end

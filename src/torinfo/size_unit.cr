@@ -21,6 +21,23 @@ module Torinfo
       end
     end
 
+    # Whether this unit renders exact integer bytes.
+    def bytes? : Bool
+      self == Bytes
+    end
+
+    # Suffix appended to a companion field name in structured output (e.g.
+    # `size_gb`). `nil` for Bytes, whose value is the base field itself.
+    def suffix : String?
+      case self
+      in Bytes     then nil
+      in Human     then "human"
+      in Kilobytes then "kb"
+      in Megabytes then "mb"
+      in Gigabytes then "gb"
+      end
+    end
+
     private def scale(size : Int, divisor : Int64) : String
       "%.1f" % (size.to_f64 / divisor)
     end

@@ -1,27 +1,27 @@
 module Torinfo
   module Formatters
+    # `eval`-able bash variable assignments. Variable names are the prefix plus
+    # the snake-case field name. Sizes are byte counts; a `size_<unit>` scalar
+    # (and per-file `filesize_<unit>` array) is added when a unit was explicitly
+    # selected. A self-referential `<prefix>variables` array names every emitted
+    # variable, including itself, so callers can `unset "${prefix}variables[@]}"`.
     class BashVars
-      property time_format : String?
-      property? unix_epoch : Bool = false
+      property size_unit : SizeUnit = SizeUnit::Human
+      property? size_companion : Bool = false
 
-      def format_all(torrents : Array(Torrent), io : IO, prefix : String, tty : Bool) : Nil
+      def format_all(torrents : Array(Torrent), io : IO, prefix : String, tty : Bool, fields : Array(Field), show_files : Bool) : Nil
         torrents.each_with_index do |torrent, index|
           pfx = effective_prefix(prefix, torrents.size, index)
-          format_one(torrent, io, prefix: pfx, tty: tty)
+          format_one(torrent, io, pfx, tty, fields, show_files)
           io << '\n' if tty && index < torrents.size - 1
         end
       end
 
-      def format_one(torrent : Torrent, io : IO, prefix : String, tty : Bool) : Nil
-        assignments = build_assignments(torrent, prefix)
+      def format_one(torrent : Torrent, io : IO, prefix : String, tty : Bool, fields : Array(Field), show_files : Bool) : Nil
+        assignments = build_assignments(torrent, prefix, fields, show_files)
         if tty
-          assignments.each_with_index do |pair, index|
-            var_name, value = pair
-            if index == 0
-              io << "#{var_name}=#{value}"
-            else
-              io << " \\\n  #{var_name}=#{value}"
-            end
+          assignments.each_with_index do |(var_name, value), index|
+            io << (index.zero? ? "#{var_name}=#{value}" : " \\\n  #{var_name}=#{value}")
           end
           io << '\n'
         else
@@ -42,29 +42,45 @@ module Torinfo
         end
       end
 
-      private def build_assignments(torrent : Torrent, prefix : String) : Array({String, String})
-        time_str = format_time(torrent.created_on)
-        assignments = [
-          {"#{prefix}path", bash_quote(torrent.path)},
-          {"#{prefix}name", bash_quote(torrent.name)},
-          {"#{prefix}hash", bash_quote(torrent.hash)},
-          {"#{prefix}created_by", bash_quote(torrent.created_by || "")},
-          {"#{prefix}created_on", bash_quote(time_str)},
-          {"#{prefix}comment", bash_quote(torrent.comment || "")},
-          {"#{prefix}source", bash_quote(torrent.source || "")},
-          {"#{prefix}piece_count", torrent.piece_count.to_s},
-          {"#{prefix}piece_size", torrent.piece_size.to_s},
-          {"#{prefix}total_size", torrent.total_size.to_s},
-          {"#{prefix}visibility", torrent.visibility},
-          {"#{prefix}format_version", torrent.format_version.to_s},
-          {"#{prefix}trackers", bash_array(torrent.trackers)},
-          {"#{prefix}filename", bash_array(torrent.files.map(&.path))},
-          {"#{prefix}filesize", bash_int_array(torrent.files.map(&.size))},
-        ]
+      private def companion_suffix : String?
+        size_companion? ? @size_unit.suffix : nil
+      end
+
+      private def build_assignments(torrent : Torrent, prefix : String, fields : Array(Field), show_files : Bool) : Array({String, String})
+        ctx = RenderContext.new(unit: @size_unit, visual: false)
+        assignments = [] of {String, String}
+
+        fields.each do |field|
+          name = "#{prefix}#{field.bash_name}"
+          if field.trackers?
+            assignments << {name, bash_array(torrent.trackers)}
+          else
+            value = field.render(torrent, ctx)
+            assignments << {name, unquoted?(field) ? value : bash_quote(value)}
+            if field.size? && (suffix = companion_suffix)
+              assignments << {"#{prefix}size_#{suffix}", bash_quote(@size_unit.format(torrent.total_size))}
+            end
+          end
+        end
+
+        if show_files
+          assignments << {"#{prefix}filename", bash_array(torrent.files.map(&.path))}
+          assignments << {"#{prefix}filesize", bash_int_array(torrent.files.map(&.size))}
+          if suffix = companion_suffix
+            formatted = torrent.files.map { |file| @size_unit.format(file.size) }
+            assignments << {"#{prefix}filesize_#{suffix}", bash_array(formatted)}
+          end
+        end
+
         names = assignments.map { |var_name, _value| var_name }
         names << "#{prefix}variables"
         assignments << {"#{prefix}variables", bash_array(names)}
         assignments
+      end
+
+      # Integer and enum-like fields are emitted unquoted.
+      private def unquoted?(field : Field) : Bool
+        field.numeric? || field.format? || field.visibility?
       end
 
       private def bash_array(items : Array(String)) : String
@@ -73,17 +89,6 @@ module Torinfo
 
       private def bash_int_array(items : Array(Int64)) : String
         "(#{items.map(&.to_s).join(' ')})"
-      end
-
-      private def format_time(time : Time?) : String
-        return "" unless time
-        if @unix_epoch
-          time.to_unix.to_s
-        elsif fmt = @time_format
-          time.to_s(fmt)
-        else
-          time.to_rfc3339
-        end
       end
     end
   end

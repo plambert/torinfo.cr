@@ -2,193 +2,143 @@ require "../spec_helper"
 require "json"
 
 Spectator.describe Torinfo::CLI do
-  describe ".parse" do
-    it "defaults to text output" do
-      cli = Torinfo::CLI.parse(["spec/fixtures/v1_single.torrent"])
-      expect(cli.output_format).to eq(:text)
+  def parse(args) : Torinfo::CLI
+    Torinfo::CLI.parse(args)
+  end
+
+  def emit(args) : String
+    io = IO::Memory.new
+    Torinfo::CLI.parse(args).emit(io)
+    io.to_s
+  end
+
+  describe "output format resolution" do
+    it "defaults to info for a single torrent" do
+      cli = parse(["spec/fixtures/v1_single.torrent"])
+      expect(cli.output_format).to eq(Torinfo::OutputFormat::Info)
     end
 
-    it "parses --json" do
-      cli = Torinfo::CLI.parse(["--json", "spec/fixtures/v1_single.torrent"])
-      expect(cli.output_format).to eq(:json)
+    it "defaults to table for several torrents" do
+      cli = parse(["spec/fixtures/v1_single.torrent", "spec/fixtures/v1_multi.torrent"])
+      expect(cli.output_format).to eq(Torinfo::OutputFormat::Table)
     end
 
-    it "parses --text" do
-      cli = Torinfo::CLI.parse(["--text", "spec/fixtures/v1_single.torrent"])
-      expect(cli.output_format).to eq(:text)
+    it "honors an explicit format flag" do
+      expect(parse(["--json", "spec/fixtures/v1_single.torrent"]).output_format).to eq(Torinfo::OutputFormat::Json)
+      expect(parse(["--box", "spec/fixtures/v1_single.torrent"]).output_format).to eq(Torinfo::OutputFormat::Box)
+      expect(parse(["--bashv", "t_", "spec/fixtures/v1_single.torrent"]).output_format).to eq(Torinfo::OutputFormat::BashVars)
     end
 
-    it "parses --bashv with prefix" do
-      cli = Torinfo::CLI.parse(["--bashv", "t_", "spec/fixtures/v1_single.torrent"])
-      expect(cli.output_format).to eq(:bash_vars)
-      expect(cli.bashv_prefix).to eq("t_")
-    end
-
-    it "parses --bashf with function name" do
-      cli = Torinfo::CLI.parse(["--bashf", "myfunc", "spec/fixtures/v1_single.torrent"])
-      expect(cli.output_format).to eq(:bash_func)
-      expect(cli.bashf_func).to eq("myfunc")
-    end
-
-    it "collects field flags" do
-      cli = Torinfo::CLI.parse(["--name", "--hash", "spec/fixtures/v1_single.torrent"])
-      expect(cli.selected_fields).to contain_exactly(:name, :hash)
-    end
-
-    it "selects the total size field with --size" do
-      cli = Torinfo::CLI.parse(["--size", "spec/fixtures/v1_single.torrent"])
-      expect(cli.selected_fields).to contain_exactly(:total_size)
-    end
-
-    it "rejects the old --total-size spelling" do
-      expect do
-        Torinfo::CLI.parse(["--total-size", "spec/fixtures/v1_single.torrent"])
-      end.to raise_error(Shell::AutoComplete::ParseError, /unknown flag/)
-    end
-
-    it "defaults the size unit to human" do
-      cli = Torinfo::CLI.parse(["spec/fixtures/v1_single.torrent"])
-      expect(cli.size_unit).to eq(Torinfo::SizeUnit::Human)
-    end
-
-    it "parses --human" do
-      cli = Torinfo::CLI.parse(["--human", "spec/fixtures/v1_single.torrent"])
-      expect(cli.size_unit).to eq(Torinfo::SizeUnit::Human)
-    end
-
-    it "parses --bytes" do
-      cli = Torinfo::CLI.parse(["--bytes", "spec/fixtures/v1_single.torrent"])
-      expect(cli.size_unit).to eq(Torinfo::SizeUnit::Bytes)
-    end
-
-    it "parses --kilobytes" do
-      cli = Torinfo::CLI.parse(["--kilobytes", "spec/fixtures/v1_single.torrent"])
-      expect(cli.size_unit).to eq(Torinfo::SizeUnit::Kilobytes)
-    end
-
-    it "parses --megabytes" do
-      cli = Torinfo::CLI.parse(["--megabytes", "spec/fixtures/v1_single.torrent"])
-      expect(cli.size_unit).to eq(Torinfo::SizeUnit::Megabytes)
-    end
-
-    it "parses --gigabytes" do
-      cli = Torinfo::CLI.parse(["--gigabytes", "spec/fixtures/v1_single.torrent"])
-      expect(cli.size_unit).to eq(Torinfo::SizeUnit::Gigabytes)
-    end
-
-    it "parses --size-unit with a named unit" do
-      cli = Torinfo::CLI.parse(["--size-unit", "megabytes", "spec/fixtures/v1_single.torrent"])
-      expect(cli.size_unit).to eq(Torinfo::SizeUnit::Megabytes)
-    end
-
-    it "parses --strftime format" do
-      cli = Torinfo::CLI.parse(["--strftime", "%Y-%m-%d", "spec/fixtures/v1_single.torrent"])
-      expect(cli.strftime).to eq("%Y-%m-%d")
-    end
-
-    it "parses --unix-epoch" do
-      cli = Torinfo::CLI.parse(["--unix-epoch", "spec/fixtures/v1_single.torrent"])
-      expect(cli.unix_epoch).to be_true
-    end
-
-    it "parses --raw" do
-      cli = Torinfo::CLI.parse(["--raw", "spec/fixtures/v1_single.torrent"])
-      expect(cli.raw).to be_true
-    end
-
-    it "raises ParseError for unknown option" do
-      expect do
-        Torinfo::CLI.parse(["--nope", "spec/fixtures/v1_single.torrent"])
-      end.to raise_error(Shell::AutoComplete::ParseError, /unknown flag/)
-    end
-
-    it "raises ParseError for --bashv without prefix argument" do
-      expect do
-        Torinfo::CLI.parse(["--bashv"])
-      end.to raise_error(Shell::AutoComplete::ParseError, /requires a value/)
-    end
-
-    it "raises ParseError when no torrent files are given" do
-      expect do
-        Torinfo::CLI.parse([] of String)
-      end.to raise_error(Shell::AutoComplete::ParseError, /positional/)
-    end
-
-    it "collects torrent file paths" do
-      cli = Torinfo::CLI.parse(["spec/fixtures/v1_single.torrent", "spec/fixtures/v1_multi.torrent"])
-      expect(cli.torrent_paths.map(&.to_s)).to eq(["spec/fixtures/v1_single.torrent", "spec/fixtures/v1_multi.torrent"])
+    it "rejects more than one format" do
+      expect { parse(["--json", "--yaml", "spec/fixtures/v1_single.torrent"]).output_format }
+        .to raise_error(Shell::AutoComplete::ParseError, /only one output format/)
     end
   end
 
-  describe "#emit" do
-    it "outputs text for a torrent file" do
-      io = IO::Memory.new
-      Torinfo::CLI.parse(["spec/fixtures/v1_single.torrent"]).emit(io)
-      expect(io.to_s).to match(/Name: test-file\.txt/)
+  describe "--fields" do
+    it "is cumulative and comma-split, order preserved" do
+      cli = parse(["--fields", "size,name", "--fields", "visibility", "spec/fixtures/v1_single.torrent"])
+      expect(cli.resolve_fields(Torinfo::OutputFormat::Info)).to eq(
+        [Torinfo::Field::Size, Torinfo::Field::Name, Torinfo::Field::Visibility]
+      )
     end
 
-    it "outputs raw value without label when --raw" do
-      io = IO::Memory.new
-      Torinfo::CLI.parse(["--raw", "--name", "spec/fixtures/v1_single.torrent"]).emit(io)
-      expect(io.to_s.chomp).to eq("test-file.txt")
+    it "dedups while keeping first position" do
+      cli = parse(["--fields", "name,size,name", "spec/fixtures/v1_single.torrent"])
+      expect(cli.resolve_fields(Torinfo::OutputFormat::Info)).to eq([Torinfo::Field::Name, Torinfo::Field::Size])
     end
 
-    it "outputs JSON when --json" do
-      io = IO::Memory.new
-      Torinfo::CLI.parse(["--json", "spec/fixtures/v1_single.torrent"]).emit(io)
-      expect { JSON.parse(io.to_s) }.not_to raise_error
+    it "falls back to the format default when empty" do
+      cli = parse(["spec/fixtures/v1_single.torrent"])
+      expect(cli.resolve_fields(Torinfo::OutputFormat::Table)).to eq(Torinfo::OutputFormat::Table.default_fields)
     end
 
-    it "humanizes the total size by default" do
-      io = IO::Memory.new
-      Torinfo::CLI.parse(["--raw", "--size", "spec/fixtures/v1_single.torrent"]).emit(io)
-      expect(io.to_s.chomp).to eq(1024_i64.humanize)
+    it "rejects an unknown field at parse time" do
+      expect { parse(["--fields", "nope", "spec/fixtures/v1_single.torrent"]) }
+        .to raise_error(Shell::AutoComplete::ParseError, /unknown field/)
     end
 
-    it "shows exact bytes with --bytes" do
-      io = IO::Memory.new
-      Torinfo::CLI.parse(["--bytes", "--raw", "--size", "spec/fixtures/v1_single.torrent"]).emit(io)
-      expect(io.to_s.chomp).to eq("1024")
+    it "rejects files as a field" do
+      expect { parse(["--fields", "files", "spec/fixtures/v1_single.torrent"]) }
+        .to raise_error(Shell::AutoComplete::ParseError, /--files/)
+    end
+  end
+
+  describe "size units" do
+    it "defaults to human" do
+      expect(parse(["spec/fixtures/v1_single.torrent"]).size_unit).to eq(Torinfo::SizeUnit::Human)
     end
 
-    it "shows scaled sizes with --kilobytes" do
-      io = IO::Memory.new
-      Torinfo::CLI.parse(["--kilobytes", "--raw", "--size", "spec/fixtures/v1_single.torrent"]).emit(io)
-      expect(io.to_s.chomp).to eq("1.0")
+    it "parses the shortcut flags" do
+      expect(parse(["--gigabytes", "spec/fixtures/v1_single.torrent"]).size_unit).to eq(Torinfo::SizeUnit::Gigabytes)
+      expect(parse(["--bytes", "spec/fixtures/v1_single.torrent"]).size_unit).to eq(Torinfo::SizeUnit::Bytes)
+    end
+  end
+
+  describe "validations" do
+    it "rejects --header on a non-tabular format" do
+      expect { emit(["--info", "--header", "spec/fixtures/v1_single.torrent"]) }
+        .to raise_error(Shell::AutoComplete::ParseError, /--header.*not valid/)
     end
 
-    it "leaves JSON sizes as integer bytes regardless of unit" do
-      io = IO::Memory.new
-      Torinfo::CLI.parse(["--json", "--megabytes", "spec/fixtures/v1_single.torrent"]).emit(io)
-      expect(JSON.parse(io.to_s)["total_size"]).to eq(1024)
+    it "allows --header on box" do
+      expect { emit(["--box", "--header", "spec/fixtures/v1_single.torrent"]) }.not_to raise_error
     end
 
-    it "raises ParseError for --bashv with field specifiers" do
-      io = IO::Memory.new
-      expect do
-        Torinfo::CLI.parse(["--bashv", "t_", "--name", "spec/fixtures/v1_single.torrent"]).emit(io)
-      end.to raise_error(Shell::AutoComplete::ParseError, /cannot combine/)
+    it "rejects --utf8 without --box" do
+      expect { emit(["--table", "--utf8", "spec/fixtures/v1_single.torrent"]) }
+        .to raise_error(Shell::AutoComplete::ParseError, /only valid with --box/)
+    end
+  end
+
+  describe "#emit output" do
+    it "renders info by default for one torrent" do
+      expect(emit(["spec/fixtures/v1_single.torrent"])).to match(/Name: test-file\.txt/)
     end
 
-    it "raises ParseError for --bashf with field specifiers" do
-      io = IO::Memory.new
-      expect do
-        Torinfo::CLI.parse(["--bashf", "f", "--hash", "spec/fixtures/v1_single.torrent"]).emit(io)
-      end.to raise_error(Shell::AutoComplete::ParseError, /cannot combine/)
+    it "renders a table for several torrents" do
+      output = emit(["spec/fixtures/v1_single.torrent", "spec/fixtures/v1_multi.torrent"])
+      expect(output.lines.first).to match(/Size\s+Visibility\s+Created On\s+Name/)
     end
 
-    it "raises ParseError for --raw with --json" do
-      io = IO::Memory.new
-      expect do
-        Torinfo::CLI.parse(["--raw", "--json", "spec/fixtures/v1_single.torrent"]).emit(io)
-      end.to raise_error(Shell::AutoComplete::ParseError, /only valid with --text/)
+    it "emits valid JSON with kebab keys" do
+      obj = JSON.parse(emit(["--json", "spec/fixtures/v1_single.torrent"]))
+      expect(obj["created-on"].as_s).to eq("2024-01-01T00:00:00Z")
     end
 
-    it "raises ParseError for --raw with --bashv" do
-      io = IO::Memory.new
-      expect do
-        Torinfo::CLI.parse(["--raw", "--bashv", "t_", "spec/fixtures/v1_single.torrent"]).emit(io)
-      end.to raise_error(Shell::AutoComplete::ParseError, /only valid with --text/)
+    it "adds a size companion in structured output only when a unit is given" do
+      plain = JSON.parse(emit(["--json", "--fields", "size", "spec/fixtures/v1_single.torrent"]))
+      expect(plain.as_h.has_key?("size-gb")).to be_false
+      with_unit = JSON.parse(emit(["--json", "--gigabytes", "--fields", "size", "spec/fixtures/v1_single.torrent"]))
+      expect(with_unit["size-gb"].as_s).to eq("0.0")
+    end
+
+    it "keeps --files independent of the field set" do
+      # default fields + files
+      default_plus = emit(["--info", "--files", "spec/fixtures/v1_multi.torrent"])
+      expect(default_plus).to match(/Name:/)
+      expect(default_plus).to match(/Files:/)
+      # only size + files
+      only_size = emit(["--info", "--fields", "size", "--files", "spec/fixtures/v1_multi.torrent"])
+      expect(only_size).to match(/Size:/)
+      expect(only_size).to match(/Files:/)
+      expect(only_size).not_to match(/Name:/)
+    end
+
+    it "draws an ASCII box when forced" do
+      output = emit(["--box", "--ascii", "--fields", "name", "spec/fixtures/v1_single.torrent"])
+      expect(output).to match(/\A\+-+\+\n/)
+    end
+  end
+
+  describe ".parse positionals" do
+    it "requires at least one torrent" do
+      expect { parse([] of String) }.to raise_error(Shell::AutoComplete::ParseError, /positional/)
+    end
+
+    it "collects torrent paths" do
+      cli = parse(["spec/fixtures/v1_single.torrent", "spec/fixtures/v1_multi.torrent"])
+      expect(cli.torrent_paths.map(&.to_s)).to eq(["spec/fixtures/v1_single.torrent", "spec/fixtures/v1_multi.torrent"])
     end
   end
 end
