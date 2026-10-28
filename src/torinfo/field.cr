@@ -117,8 +117,9 @@ module Torinfo
     # Parses a kebab token into a Field, raising ArgumentError on an unknown or
     # reserved token. `files` is reserved for the --files switch.
     def self.parse_token(token : String) : Field
+      # The shard prefixes the flag's own spelling, so this must not repeat it.
       if token == "files"
-        raise ArgumentError.new("field 'files' is controlled by --files/--no-files, not --fields")
+        raise ArgumentError.new("'files' is controlled by --files/--no-files")
       end
       values.find { |field| field.token == token } ||
         raise ArgumentError.new("unknown field: #{token} (valid: #{values.map(&.token).join(", ")})")

@@ -6,7 +6,7 @@ authors:
 
 description: Crystal shard and CLI for reading BitTorrent .torrent files
 
-crystal: ">= 1.20.0"
+crystal: ">= 1.21"
 
 license: MIT
 
@@ -19,6 +19,7 @@ dependencies:
     github: plambert/guard.cr
   shell-auto_complete:
     github: plambert/shell-auto_complete.cr
+    version: "~> 2.4"
 
 development_dependencies:
   spectator:

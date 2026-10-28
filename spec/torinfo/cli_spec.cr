@@ -33,6 +33,39 @@ Spectator.describe Torinfo::CLI do
       expect { parse(["--json", "--yaml", "spec/fixtures/v1_single.torrent"]).output_format }
         .to raise_error(Shell::AutoComplete::ParseError, /only one output format/)
     end
+
+    # --format is one enum flag now; the shortcut switches above are generated
+    # from it, so both spellings must behave identically.
+    it "accepts the format by name" do
+      expect(parse(["--format", "yaml", "spec/fixtures/v1_single.torrent"]).output_format)
+        .to eq(Torinfo::OutputFormat::Yaml)
+    end
+
+    it "rejects mixing the value form with a shortcut switch" do
+      expect { parse(["--format", "json", "--yaml", "spec/fixtures/v1_single.torrent"]).output_format }
+        .to raise_error(Shell::AutoComplete::ParseError, /only one output format/)
+    end
+
+    it "tolerates the same switch repeated" do
+      expect(parse(["--json", "--json", "spec/fixtures/v1_single.torrent"]).output_format)
+        .to eq(Torinfo::OutputFormat::Json)
+    end
+
+    it "rejects an unknown format name" do
+      expect { parse(["--format", "nope", "spec/fixtures/v1_single.torrent"]) }
+        .to raise_error(Shell::AutoComplete::ParseError, /--format/)
+    end
+
+    # bash-vars/bash-func carry a value, so --format alone cannot select them.
+    it "rejects --format bash-vars without --bashv" do
+      expect { emit(["--format", "bash-vars", "spec/fixtures/v1_single.torrent"]) }
+        .to raise_error(Shell::AutoComplete::ParseError, /needs --bashv/)
+    end
+
+    it "rejects --format bash-func without --bashf" do
+      expect { emit(["--format", "bash-func", "spec/fixtures/v1_single.torrent"]) }
+        .to raise_error(Shell::AutoComplete::ParseError, /needs --bashf/)
+    end
   end
 
   describe "--fields" do
@@ -61,6 +94,54 @@ Spectator.describe Torinfo::CLI do
     it "rejects files as a field" do
       expect { parse(["--fields", "files", "spec/fixtures/v1_single.torrent"]) }
         .to raise_error(Shell::AutoComplete::ParseError, /--files/)
+    end
+
+    # The flag's own spelling is prefixed by the shard, so the message must not
+    # name --fields a second time.
+    it "names the flag exactly once in the reserved-token error" do
+      expect { parse(["--fields", "files", "spec/fixtures/v1_single.torrent"]) }
+        .to raise_error(Shell::AutoComplete::ParseError, /\A--fields: 'files' is controlled by --files\/--no-files\z/)
+    end
+
+    it "parses tokens straight into Field values" do
+      cli = parse(["--fields", "created-on,piece-size", "spec/fixtures/v1_single.torrent"])
+      expect(cli.fields).to eq([Torinfo::Field::CreatedOn, Torinfo::Field::PieceSize])
+    end
+  end
+
+  # Regression: --fields completion used to ignore the current word, so
+  # `--fields name,cr<TAB>` replaced the whole token. The Field element type now
+  # drives it, keeping the earlier elements as the candidate's prefix.
+  describe "completion" do
+    def complete(argv) : Array(String)
+      io = IO::Memory.new
+      Torinfo::CLI.dispatch(argv, stdout: io)
+      io.to_s.lines.map(&.strip)
+    end
+
+    it "offers every field for the first element" do
+      expect(complete(["__complete", "2", "torinfo", "--fields", ""]))
+        .to eq(Torinfo::Field.values.map(&.token))
+    end
+
+    it "keeps earlier elements as the prefix after a delimiter" do
+      expect(complete(["__complete", "2", "torinfo", "--fields", "name,cr"]))
+        .to eq(["name,created-by", "name,created-on"])
+    end
+
+    it "offers the format names" do
+      expect(complete(["__complete", "2", "torinfo", "--format", "j"])).to eq(["json"])
+    end
+
+    # These match what the deleted hand-written completers produced.
+    it "derives size-unit candidates from the enum" do
+      expect(complete(["__complete", "2", "torinfo", "--size-unit", ""]))
+        .to eq(Torinfo::SizeUnit.names.map(&.downcase))
+    end
+
+    it "derives box-charset candidates from the enum" do
+      expect(complete(["__complete", "2", "torinfo", "--box-charset", ""]))
+        .to eq(Torinfo::BoxCharset.names.map(&.downcase))
     end
   end
 

@@ -18,13 +18,7 @@ Usage: torinfo [options] <torrentfile...>
 tool to read BitTorrent files
 
 Options:
-  --info                          Labelled human-readable text
-  --table                         Aligned columns, one torrent per row
-  --box                           Like --table with drawn borders
-  --tsv                           Tab-separated values
-  --csv                           Comma-separated values
-  --json                          NDJSON, one object per torrent
-  --yaml                          YAML, one document per torrent
+  --format NAME                   Output format: --info, --table, --box, --tsv, --csv, --json, --yaml
   --bashv PREFIX                  Bash variable assignments for eval
   --bashf FUNCTION                Bash function call for eval
   --fields LIST                   Comma-separated fields to show (repeatable); replaces the default set
@@ -37,6 +31,12 @@ Options:
 
 Positional arguments:
   <torrent_paths...>    BitTorrent files to read
+
+Default format is --info for one torrent, --table for several.
+--fields takes a comma-separated list and may be repeated; valid fields:
+  name format path hash created-by created-on comment source
+  piece-count piece-size size visibility trackers
+--files/--no-files toggles the file listing independently of --fields.
 ```
 
 ### Output formats

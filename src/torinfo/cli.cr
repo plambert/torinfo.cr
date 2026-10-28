@@ -10,55 +10,45 @@ module Torinfo
             "  name format path hash created-by created-on comment source\n" \
             "  piece-count piece-size size visibility trackers\n" \
             "--files/--no-files toggles the file listing independently of --fields." do
-    # Output formats (mutually exclusive).
-    flag info : Bool = false, "--info", "Labelled human-readable text", negatable: false
-    flag table : Bool = false, "--table", "Aligned columns, one torrent per row", negatable: false
-    flag box : Bool = false, "--box", "Like --table with drawn borders", negatable: false
-    flag tsv : Bool = false, "--tsv", "Tab-separated values", negatable: false
-    flag csv : Bool = false, "--csv", "Comma-separated values", negatable: false
-    flag json : Bool = false, "--json", "NDJSON, one object per torrent", negatable: false
-    flag yaml : Bool = false, "--yaml", "YAML, one document per torrent", negatable: false
+    # Output format. One enum flag rather than seven switches: shortcut_flags
+    # regenerates --info/--table/--box/--tsv/--csv/--json/--yaml, and --format
+    # takes the name directly. BashVars/BashFunc are excluded because they are
+    # selected by --bashv/--bashf, which carry a value.
+    flag format : OutputFormat?, "--format NAME",
+      "Output format: --info, --table, --box, --tsv, --csv, --json, --yaml",
+      shortcut_flags: {except: [:bash_vars, :bash_func]}
     flag bashv_prefix : String?, "--bashv PREFIX", "Bash variable assignments for eval"
     flag bashf_func : String?, "--bashf FUNCTION", "Bash function call for eval"
 
-    # Field and file selection.
-    flag fields : Array(String) = [] of String, "--fields LIST",
+    # Field and file selection. The Field element type drives completion
+    # (kebab-cased names, delimiter-aware); transform_with keeps the tailored
+    # "unknown field" and "files is not a field" errors.
+    flag fields : Array(Field) = [] of Field, "--fields LIST",
       "Comma-separated fields to show (repeatable); replaces the default set",
       delimiter: ",",
-      transform_with: :parse_field_token,
-      complete_with: :complete_field
+      transform_with: :parse_field_token
     flag files : Bool = false, "--files", "Include the per-file listing"
 
     # Presentation.
     flag header : Bool?, "--header", "Show a header row (default on for table/tsv/csv/box)"
     flag box_charset : BoxCharset = BoxCharset::Auto, "--box-charset MODE",
       "Box glyphs: --utf8, --ascii, or --auto (default) from the locale",
-      shortcut_flags: true,
-      complete_with: :complete_box_charset
+      shortcut_flags: true
     flag size_unit : SizeUnit = SizeUnit::Human, "--size-unit UNIT",
       "Size units: --human (default), --bytes, --kilobytes, --megabytes, --gigabytes",
-      shortcut_flags: true,
-      complete_with: :complete_size_unit
+      shortcut_flags: true
     flag strftime : String?, "--strftime FORMAT", "Format timestamps with strftime FORMAT (visual formats)"
     flag unix_epoch : Bool = false, "--unix-epoch", "Format timestamps as Unix epoch seconds (visual formats)", negatable: false
 
     positionals torrent_paths : Array(Path), "BitTorrent files to read", min: 1
 
-    def self.parse_field_token(value : String) : String
+    # Every spelling that selects a format. Used to keep the "only one output
+    # format" rule the seven separate switches used to enforce: the enum flag
+    # itself is last-wins, so the occurrence log is what detects a conflict.
+    FORMAT_SPELLINGS = %w[--format --info --table --box --tsv --csv --json --yaml]
+
+    def self.parse_field_token(value : String) : Field
       Field.parse_token(value)
-      value
-    end
-
-    def self.complete_field(ctx : Shell::AutoComplete::CompletionContext) : Array(String)
-      Field.values.map(&.token)
-    end
-
-    def self.complete_size_unit(ctx : Shell::AutoComplete::CompletionContext) : Array(String)
-      SizeUnit.names.map(&.downcase)
-    end
-
-    def self.complete_box_charset(ctx : Shell::AutoComplete::CompletionContext) : Array(String)
-      BoxCharset.names.map(&.downcase)
     end
 
     def run
@@ -126,19 +116,27 @@ module Torinfo
     # table for several). Raises if more than one format flag was given.
     def output_format : OutputFormat
       selected = [] of OutputFormat
-      selected << OutputFormat::Info if info
-      selected << OutputFormat::Table if table
-      selected << OutputFormat::Box if box
-      selected << OutputFormat::Tsv if tsv
-      selected << OutputFormat::Csv if csv
-      selected << OutputFormat::Json if json
-      selected << OutputFormat::Yaml if yaml
+      if chosen = format
+        selected << chosen
+      end
       selected << OutputFormat::BashVars unless bashv_prefix.nil?
       selected << OutputFormat::BashFunc unless bashf_func.nil?
-      if selected.size > 1
+      if formats_requested > 1
         raise Shell::AutoComplete::ParseError.new("only one output format may be given")
       end
       selected.first? || (torrent_paths.size == 1 ? OutputFormat::Info : OutputFormat::Table)
+    end
+
+    # How many distinct formats the command line asked for. The enum flag
+    # resolves last-wins on its own, so the occurrence log is consulted to keep
+    # `--json --yaml` an error rather than silently selecting yaml.
+    private def formats_requested : Int32
+      spellings = parsed_occurrences.map(&.[0])
+      spellings.select! { |spelling| FORMAT_SPELLINGS.includes?(spelling) }
+      count = spellings.uniq!.size
+      count += 1 unless bashv_prefix.nil?
+      count += 1 unless bashf_func.nil?
+      count
     end
 
     # The fields to render: the explicit --fields list (deduped, order preserved)
@@ -146,12 +144,7 @@ module Torinfo
     def resolve_fields(fmt : OutputFormat) : Array(Field)
       return fmt.default_fields if fields.empty?
       seen = Set(Field).new
-      result = [] of Field
-      fields.each do |token|
-        field = Field.parse_token(token)
-        result << field if seen.add?(field)
-      end
-      result
+      fields.select { |field| seen.add?(field) }
     end
 
     private def validate!(fmt : OutputFormat) : Nil
@@ -160,6 +153,13 @@ module Torinfo
       end
       if flag_given?(:box_charset) && !fmt.box?
         raise Shell::AutoComplete::ParseError.new("--utf8/--ascii/--box-charset is only valid with --box")
+      end
+      # These two formats carry a value, so --format cannot select them alone.
+      if fmt.bash_vars? && bashv_prefix.nil?
+        raise Shell::AutoComplete::ParseError.new("--format bash-vars needs --bashv PREFIX")
+      end
+      if fmt.bash_func? && bashf_func.nil?
+        raise Shell::AutoComplete::ParseError.new("--format bash-func needs --bashf FUNCTION")
       end
     end
 
